@@ -1,0 +1,467 @@
+import { Theme, Icons } from "theme.slint";
+import { ChannelItem, ProfileItem, EpgEntry, AppState } from "state.slint";
+
+export enum ButtonKind { primary, white, secondary, ghost, danger }
+
+// Petit indicateur de chargement circulaire (arc animé).
+export component Spinner inherits Rectangle {
+    in property <color> tone: Theme.accent;
+    in property <length> size: 28px;
+    width: size;
+    height: size;
+
+    property <float> t: Math.mod(animation-tick() / 1ms, 900) / 900;
+
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        stroke: #ffffff1a;
+        stroke-width: root.size / 9;
+        MoveTo { x: 12; y: 2.5; }
+        ArcTo { x: 12; y: 21.5; radius-x: 9.5; radius-y: 9.5; sweep: true; }
+        ArcTo { x: 12; y: 2.5; radius-x: 9.5; radius-y: 9.5; sweep: true; }
+    }
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        stroke: root.tone;
+        stroke-width: root.size / 9;
+        stroke-line-cap: round;
+        MoveTo {
+            x: 12 + 9.5 * Math.sin(root.t * 360deg);
+            y: 12 - 9.5 * Math.cos(root.t * 360deg);
+        }
+        ArcTo {
+            x: 12 + 9.5 * Math.sin(root.t * 360deg + 100deg);
+            y: 12 - 9.5 * Math.cos(root.t * 360deg + 100deg);
+            radius-x: 9.5;
+            radius-y: 9.5;
+            sweep: true;
+        }
+    }
+}
+
+// Bouton texte (+ icône optionnelle).
+export component Button inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <ButtonKind> kind: ButtonKind.primary;
+    in property <bool> enabled: true;
+    in property <bool> busy: false;
+    in property <length> font-size: 15px;
+    callback clicked;
+
+    property <bool> hover: ta.has-hover && enabled && !busy;
+    property <color> fg: kind == ButtonKind.white ? #0a0a0c : kind == ButtonKind.danger ? #ff5a63 : Theme.text;
+
+    height: 44px;
+    border-radius: Theme.radius-s;
+    opacity: enabled ? 1 : 0.45;
+    background: kind == ButtonKind.primary ? (hover ? Theme.accent-hover : Theme.accent)
+        : kind == ButtonKind.white ? (hover ? #ffffffd8 : #ffffff)
+        : kind == ButtonKind.secondary ? (hover ? #6d6d7899 : #6d6d7866)
+        : kind == ButtonKind.danger ? (hover ? #ff5a6326 : transparent)
+        : (hover ? #ffffff14 : transparent);
+    border-width: kind == ButtonKind.ghost || kind == ButtonKind.danger ? 1px : 0px;
+    border-color: kind == ButtonKind.danger ? #ff5a6366 : (hover ? Theme.text-dim : Theme.border);
+    animate background, border-color { duration: Theme.fast; }
+
+    HorizontalLayout {
+        padding-left: 22px;
+        padding-right: 22px;
+        spacing: 10px;
+        alignment: center;
+
+        if root.has-icon && !root.busy: Image {
+            source: root.icon;
+            colorize: root.fg;
+            width: 20px;
+            height: 20px;
+            y: (parent.height - self.height) / 2;
+        }
+        if root.busy: Rectangle {
+            width: 18px;
+            Spinner { tone: root.fg; size: 18px; }
+        }
+        Text {
+            text: root.text;
+            color: root.fg;
+            font-size: root.font-size;
+            font-weight: 650;
+            vertical-alignment: center;
+        }
+    }
+
+    ta := TouchArea {
+        enabled: root.enabled && !root.busy;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Bouton rond avec une icône.
+export component IconButton inherits Rectangle {
+    in property <image> icon;
+    in property <length> size: 44px;
+    in property <length> icon-size: 22px;
+    in property <color> icon-color: Theme.text;
+    in property <bool> filled: false;
+    in property <bool> active: false;
+    in property <string> tooltip;
+    callback clicked;
+
+    width: size;
+    height: size;
+    border-radius: size / 2;
+    background: ta.pressed ? #ffffff33 : ta.has-hover ? #ffffff1f : (filled ? #00000080 : transparent);
+    border-width: filled ? 1px : 0px;
+    border-color: #ffffff33;
+    animate background { duration: Theme.fast; }
+
+    Image {
+        source: root.icon;
+        colorize: root.active ? Theme.accent : root.icon-color;
+        width: root.icon-size;
+        height: root.icon-size;
+        animate colorize { duration: Theme.fast; }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Champ de saisie avec libellé.
+export component Field inherits VerticalLayout {
+    in property <string> label;
+    in property <string> placeholder;
+    in property <bool> password: false;
+    in property <bool> enabled: true;
+    in-out property <string> text;
+    callback accepted;
+    callback edited(string);
+
+    spacing: 7px;
+
+    Text {
+        text: root.label;
+        color: Theme.text-dim;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    Rectangle {
+        height: 48px;
+        border-radius: Theme.radius-s;
+        background: input.has-focus ? #2b2b34 : Theme.surface-3;
+        border-width: 1.5px;
+        border-color: input.has-focus ? #ffffffcc : (ta.has-hover ? #ffffff40 : Theme.border);
+        animate border-color, background { duration: Theme.fast; }
+
+        ta := TouchArea {
+            mouse-cursor: MouseCursor.text;
+            clicked => { input.focus(); }
+        }
+        if root.text == "": Text {
+            x: 16px;
+            text: root.placeholder;
+            color: Theme.text-faint;
+            font-size: 15px;
+            vertical-alignment: center;
+        }
+        input := TextInput {
+            x: 16px;
+            width: parent.width - 32px;
+            height: 100%;
+            enabled: root.enabled;
+            text <=> root.text;
+            color: Theme.text;
+            font-size: 15px;
+            vertical-alignment: center;
+            single-line: true;
+            selection-background-color: #e5091480;
+            input-type: root.password ? InputType.password : InputType.text;
+            accepted => { root.accepted(); }
+            edited => { root.edited(self.text); }
+        }
+    }
+}
+
+// Pastille « EN DIRECT ».
+export component LiveBadge inherits Rectangle {
+    in property <bool> small: false;
+    height: small ? 20px : 24px;
+    width: hl.preferred-width;
+    border-radius: 4px;
+    background: Theme.accent;
+
+    hl := HorizontalLayout {
+        padding-left: small ? 7px : 9px;
+        padding-right: small ? 7px : 9px;
+        spacing: 6px;
+        alignment: center;
+        Rectangle {
+            width: 6px;
+            height: 6px;
+            y: (parent.height - 6px) / 2;
+            border-radius: 3px;
+            background: white;
+        }
+        Text {
+            text: "EN DIRECT";
+            color: white;
+            font-size: small ? 10px : 11px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// Barre de progression fine.
+export component ProgressLine inherits Rectangle {
+    in property <float> value;
+    in property <color> fill: Theme.accent;
+    height: 4px;
+    border-radius: 2px;
+    background: #ffffff2e;
+    Rectangle {
+        x: 0;
+        width: parent.width * Math.clamp(root.value, 0, 1);
+        height: 100%;
+        border-radius: 2px;
+        background: root.fill;
+        animate width { duration: Theme.slow; easing: ease-out; }
+    }
+}
+
+// Vignette de logo (image ou initiales sur fond coloré).
+export component LogoTile inherits Rectangle {
+    in property <ChannelItem> item;
+    in property <length> padding-ratio: 0;
+    in property <float> logo-scale: 0.72;
+    in property <length> initials-size: 26px;
+
+    clip: true;
+    background: item.has-logo
+        ? @linear-gradient(160deg, #25252d 0%, #18181d 100%)
+        : @linear-gradient(140deg, Theme.tint-dark(item.tint) 0%, #16161b 100%);
+
+    if root.item.has-logo: Image {
+        source: root.item.logo;
+        width: parent.width * root.logo-scale;
+        height: parent.height * root.logo-scale;
+        image-fit: contain;
+    }
+    if !root.item.has-logo: Text {
+        text: root.item.initials;
+        color: Theme.tint(root.item.tint);
+        font-size: root.initials-size;
+        font-weight: 800;
+        letter-spacing: 1px;
+    }
+}
+
+// Carte de chaîne dans la grille.
+export component ChannelCard inherits Rectangle {
+    in property <ChannelItem> item;
+    callback play();
+    callback favorite();
+    callback hovered();
+
+    property <bool> hover: ta.has-hover || fav-ta.has-hover;
+    changed hover => {
+        if (self.hover) {
+            root.hovered();
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.play(); }
+    }
+
+    card := Rectangle {
+        width: parent.width * (root.hover ? 1.045 : 1.0);
+        height: parent.height * (root.hover ? 1.045 : 1.0);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        animate width, height { duration: 180ms; easing: ease-out; }
+
+        border-radius: Theme.radius;
+        background: Theme.surface-2;
+        drop-shadow-blur: root.hover ? 24px : 0px;
+        drop-shadow-offset-y: root.hover ? 10px : 0px;
+        drop-shadow-color: #000000c0;
+        animate drop-shadow-blur, drop-shadow-offset-y { duration: 180ms; }
+
+        Rectangle {
+            border-radius: Theme.radius;
+            clip: true;
+
+            LogoTile {
+                y: 0;
+                height: parent.height - 46px;
+                item: root.item;
+            }
+
+            // Pied de carte : numéro + nom.
+            Rectangle {
+                y: parent.height - 46px;
+                height: 46px;
+                background: root.hover ? #22222a : #18181d;
+                animate background { duration: Theme.fast; }
+
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    spacing: 8px;
+                    if root.item.number > 0: Text {
+                        text: root.item.number;
+                        color: Theme.text-faint;
+                        font-size: 12px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: root.item.name;
+                        color: root.hover ? Theme.text : #dcdce2;
+                        font-size: 13.5px;
+                        font-weight: 600;
+                        overflow: elide;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+        }
+
+        // Contour au survol.
+        Rectangle {
+            border-radius: Theme.radius;
+            border-width: root.hover ? 2px : 0px;
+            border-color: #ffffffd9;
+            animate border-width { duration: Theme.fast; }
+        }
+
+        // Icône de lecture au survol.
+        Rectangle {
+            y: (parent.height - 46px - self.height) / 2;
+            width: 46px;
+            height: 46px;
+            border-radius: 23px;
+            background: #000000a0;
+            border-width: 1.5px;
+            border-color: #ffffffcc;
+            opacity: root.hover ? 1 : 0;
+            animate opacity { duration: Theme.fast; }
+            Image {
+                x: 15px;
+                source: Icons.play;
+                colorize: white;
+                width: 18px;
+                height: 18px;
+            }
+        }
+
+        // Bouton favori.
+        fav := Rectangle {
+            x: parent.width - self.width - 8px;
+            y: 8px;
+            width: 32px;
+            height: 32px;
+            border-radius: 16px;
+            background: fav-ta.has-hover ? #000000d0 : #00000090;
+            opacity: root.hover || root.item.favorite ? 1 : 0;
+            animate opacity, background { duration: Theme.fast; }
+            Image {
+                source: root.item.favorite ? Icons.heart-filled : Icons.heart;
+                colorize: root.item.favorite ? Theme.accent : white;
+                width: 17px;
+                height: 17px;
+            }
+            fav-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.favorite(); }
+            }
+        }
+    }
+}
+
+// Avatar de profil façon Netflix.
+export component Avatar inherits Rectangle {
+    in property <int> tint-index;
+    in property <string> initial;
+    in property <length> size: 120px;
+    in property <bool> highlighted: false;
+
+    width: size;
+    height: size;
+    border-radius: size * 0.1;
+    clip: true;
+    background: @linear-gradient(135deg, Theme.tint(tint-index) 0%, Theme.tint-dark(tint-index) 100%);
+
+    // Reflet décoratif.
+    Rectangle {
+        x: parent.width * 0.45;
+        y: -parent.height * 0.35;
+        width: parent.width;
+        height: parent.height;
+        border-radius: self.width / 2;
+        background: #ffffff14;
+    }
+    Text {
+        text: root.initial;
+        color: white;
+        font-size: root.size * 0.46;
+        font-weight: 800;
+    }
+    Rectangle {
+        border-radius: parent.border-radius;
+        border-width: root.highlighted ? max(3px, root.size * 0.03) : 0px;
+        border-color: white;
+        animate border-width { duration: Theme.fast; }
+    }
+}
+
+// Notification temporaire en bas de l'écran.
+export component Toast inherits Rectangle {
+    in property <string> text;
+    property <bool> shown: text != "";
+
+    width: hl.preferred-width;
+    height: 46px;
+    border-radius: 23px;
+    background: #26262ef2;
+    border-width: 1px;
+    border-color: #ffffff1f;
+    drop-shadow-blur: 20px;
+    drop-shadow-color: #00000099;
+    opacity: shown ? 1 : 0;
+    animate opacity { duration: Theme.normal; }
+
+    hl := HorizontalLayout {
+        padding-left: 20px;
+        padding-right: 22px;
+        spacing: 10px;
+        Image {
+            source: Icons.info;
+            colorize: Theme.text-dim;
+            width: 18px;
+            height: 18px;
+            y: (parent.height - 18px) / 2;
+        }
+        Text {
+            text: root.text;
+            color: Theme.text;
+            font-size: 14px;
+            vertical-alignment: center;
+        }
+    }
+}

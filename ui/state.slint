@@ -1,0 +1,137 @@
+// État partagé entre l'interface et le code Rust.
+
+export enum Screen { profiles, editor, home, player }
+
+export struct ProfileItem {
+    id: int,
+    name: string,
+    color: int,
+    initial: string,
+    subtitle: string,
+}
+
+export struct CategoryItem {
+    id: string,
+    name: string,
+    count: int,
+}
+
+export struct ChannelItem {
+    id: int,
+    name: string,
+    number: int,
+    logo: image,
+    has-logo: bool,
+    favorite: bool,
+    initials: string,
+    tint: int,
+}
+
+export struct ChannelRow {
+    items: [ChannelItem],
+}
+
+export struct EpgEntry {
+    title: string,
+    description: string,
+    time: string,
+    start: int,
+    end: int,
+}
+
+export global AppState {
+    in-out property <Screen> screen: Screen.profiles;
+
+    // ---- Profils
+    in property <[ProfileItem]> profiles;
+    in-out property <bool> manage-profiles;
+
+    // ---- Éditeur de profil
+    in-out property <int> edit-id: -1;
+    in-out property <string> edit-name;
+    in-out property <string> edit-server;
+    in-out property <string> edit-user;
+    in-out property <string> edit-pass;
+    in-out property <int> edit-color;
+    in property <string> edit-initial: "?";
+    in property <bool> edit-busy;
+    in property <string> edit-error;
+
+    // ---- Accueil
+    in property <ProfileItem> current-profile;
+    in property <[CategoryItem]> categories;
+    in property <int> all-count;
+    in property <int> fav-count;
+    in-out property <string> selected-category: "__all__";
+    in property <string> section-title;
+    in property <int> visible-count;
+    in property <[ChannelRow]> channel-rows;
+    in-out property <string> search;
+    in property <bool> syncing;
+    in property <string> sync-text;
+    in property <bool> first-load;
+    in property <string> home-error;
+
+    in property <bool> has-hero;
+    in property <ChannelItem> hero;
+    in property <[EpgEntry]> hero-epg;
+    in property <bool> hero-epg-loading;
+
+    // Heure courante (secondes Unix), mise à jour par Rust.
+    in property <int> now;
+
+    // ---- Lecteur
+    in property <ChannelItem> playing;
+    in property <[EpgEntry]> playing-epg;
+    in property <bool> paused;
+    in property <bool> buffering;
+    in property <string> player-error;
+    in property <string> quality;
+    in-out property <float> volume: 80;
+    in property <bool> muted;
+    in property <bool> fullscreen;
+    in property <bool> controls-visible: true;
+    in-out property <bool> zap-panel;
+    in property <[ChannelItem]> zap-list;
+    in property <int> zap-index: -1;
+    in property <string> zap-title;
+    in property <bool> mpv-available: true;
+    in property <string> mpv-error;
+
+    in property <string> toast;
+
+    // ---- Actions
+    callback select-profile(int);
+    callback new-profile();
+    callback edit-profile(int);
+    callback save-profile();
+    callback edit-name-changed(string);
+    callback cancel-edit();
+    callback delete-profile(int);
+    callback switch-profile();
+
+    callback select-category(string);
+    callback search-edited(string);
+    callback columns-changed(int);
+    callback hover-channel(int);
+    callback play(int);
+    callback toggle-favorite(int);
+    callback refresh();
+
+    callback back();
+    callback toggle-pause();
+    callback volume-changed(float);
+    callback toggle-mute();
+    callback next-channel();
+    callback prev-channel();
+    callback toggle-fullscreen();
+    callback activity();
+    callback retry();
+
+    pure public function progress(e: EpgEntry) -> float {
+        if (e.end <= e.start) {
+            return 0;
+        }
+        return Math.clamp((now - e.start) * 1.0 / (e.end - e.start), 0, 1);
+    }
+}

@@ -1,0 +1,67 @@
+// Palette et typographie de Flow TV (inspirée de Netflix : noir profond + rouge).
+
+export global Theme {
+    out property <color> bg: #0a0a0c;
+    out property <color> surface: #131317;
+    out property <color> surface-2: #1b1b21;
+    out property <color> surface-3: #25252d;
+    out property <color> border: #2d2d36;
+    out property <color> text: #f4f4f6;
+    out property <color> text-dim: #a4a4b0;
+    out property <color> text-faint: #6c6c78;
+    out property <color> accent: #e50914;
+    out property <color> accent-hover: #ff1f2b;
+    out property <color> accent-soft: #e5091433;
+    out property <color> success: #46d369;
+    out property <color> warning: #f5a524;
+
+    out property <length> radius-s: 6px;
+    out property <length> radius: 10px;
+    out property <length> radius-l: 16px;
+
+    out property <string> font: "Segoe UI";
+    out property <string> font-display: "Segoe UI Variable Display";
+
+    out property <duration> fast: 140ms;
+    out property <duration> normal: 240ms;
+    out property <duration> slow: 420ms;
+
+    // Couleurs des avatars de profils et des vignettes sans logo.
+    out property <[color]> palette: [#e50914, #2b7fff, #f5a524, #17c964, #9353d3, #ff4ecd, #06b7db, #f97316];
+    out property <[color]> palette-dark: [#5c0408, #0f2f66, #5e3e08, #0a4d27, #3a1f57, #5f1c4f, #064957, #5d2c09];
+
+    pure public function tint(i: int) -> color {
+        return palette[Math.mod(Math.max(i, 0), 8)];
+    }
+    pure public function tint-dark(i: int) -> color {
+        return palette-dark[Math.mod(Math.max(i, 0), 8)];
+    }
+}
+
+export global Icons {
+    out property <image> play: @image-url("icons/play.svg");
+    out property <image> pause: @image-url("icons/pause.svg");
+    out property <image> heart: @image-url("icons/heart.svg");
+    out property <image> heart-filled: @image-url("icons/heart-filled.svg");
+    out property <image> back: @image-url("icons/back.svg");
+    out property <image> search: @image-url("icons/search.svg");
+    out property <image> refresh: @image-url("icons/refresh.svg");
+    out property <image> volume: @image-url("icons/volume.svg");
+    out property <image> volume-mute: @image-url("icons/volume-mute.svg");
+    out property <image> fullscreen: @image-url("icons/fullscreen.svg");
+    out property <image> fullscreen-exit: @image-url("icons/fullscreen-exit.svg");
+    out property <image> list: @image-url("icons/list.svg");
+    out property <image> skip-prev: @image-url("icons/skip-prev.svg");
+    out property <image> skip-next: @image-url("icons/skip-next.svg");
+    out property <image> plus: @image-url("icons/plus.svg");
+    out property <image> pencil: @image-url("icons/pencil.svg");
+    out property <image> trash: @image-url("icons/trash.svg");
+    out property <image> grid: @image-url("icons/grid.svg");
+    out property <image> tv: @image-url("icons/tv.svg");
+    out property <image> folder: @image-url("icons/folder.svg");
+    out property <image> users: @image-url("icons/users.svg");
+    out property <image> check: @image-url("icons/check.svg");
+    out property <image> alert: @image-url("icons/alert.svg");
+    out property <image> close: @image-url("icons/close.svg");
+    out property <image> info: @image-url("icons/info.svg");
+}

@@ -1,0 +1,33 @@
+import { Theme } from "theme.slint";
+import { AppState, Screen, ProfileItem, CategoryItem, ChannelItem, ChannelRow, EpgEntry } from "state.slint";
+import { Toast } from "components.slint";
+import { ProfilesScreen, ProfileEditor } from "screens/profiles.slint";
+import { HomeScreen } from "screens/home.slint";
+import { PlayerScreen } from "screens/player.slint";
+
+export { AppState, Screen, ProfileItem, CategoryItem, ChannelItem, ChannelRow, EpgEntry }
+
+export component AppWindow inherits Window {
+    title: "Flow TV";
+    icon: @image-url("../assets/icon-256.png");
+    preferred-width: 1440px;
+    preferred-height: 860px;
+    min-width: 1024px;
+    min-height: 640px;
+    background: #000000;
+    default-font-family: Theme.font;
+    default-font-size: 14px;
+
+    // L'accueil reste instancié pour conserver le défilement et l'état.
+    HomeScreen {
+        visible: AppState.screen == Screen.home;
+    }
+    if AppState.screen == Screen.profiles: ProfilesScreen { }
+    if AppState.screen == Screen.editor: ProfileEditor { }
+    if AppState.screen == Screen.player: PlayerScreen { }
+
+    Toast {
+        y: parent.height - self.height - 36px;
+        text: AppState.toast;
+    }
+}

@@ -1,0 +1,541 @@
+import { ListView, Slider } from "std-widgets.slint";
+import { Theme, Icons } from "../theme.slint";
+import { AppState, ChannelItem, EpgEntry } from "../state.slint";
+import { Button, ButtonKind, IconButton, LiveBadge, LogoTile, ProgressLine, Spinner } from "../components.slint";
+
+component VolumeSlider inherits Rectangle {
+    in-out property <float> value;
+    callback changed(float);
+    width: 110px;
+    height: 32px;
+
+    property <float> shown: AppState.muted ? 0 : value / 100;
+
+    track := Rectangle {
+        y: (parent.height - 4px) / 2;
+        height: 4px;
+        border-radius: 2px;
+        background: #ffffff40;
+        Rectangle {
+            x: 0;
+            width: parent.width * Math.clamp(root.shown, 0, 1);
+            border-radius: 2px;
+            background: white;
+        }
+    }
+    Rectangle {
+        x: track.width * Math.clamp(root.shown, 0, 1) - self.width / 2;
+        y: (parent.height - self.height) / 2;
+        width: ta.has-hover || ta.pressed ? 14px : 10px;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: white;
+        animate width { duration: Theme.fast; }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                root.value = Math.clamp(self.mouse-x / self.width * 100, 0, 100);
+                root.changed(root.value);
+            }
+        }
+        moved => {
+            if (self.pressed) {
+                root.value = Math.clamp(self.mouse-x / self.width * 100, 0, 100);
+                root.changed(root.value);
+            }
+        }
+    }
+}
+
+component ZapRow inherits Rectangle {
+    in property <ChannelItem> item;
+    in property <bool> current;
+    callback clicked;
+
+    height: 60px;
+    border-radius: Theme.radius-s;
+    background: current ? #e5091433 : (ta.has-hover ? #ffffff12 : transparent);
+    animate background { duration: Theme.fast; }
+
+    HorizontalLayout {
+        padding: 8px;
+        padding-left: 12px;
+        spacing: 12px;
+        Text {
+            text: root.item.number > 0 ? root.item.number : "";
+            width: 34px;
+            color: root.current ? Theme.text : Theme.text-faint;
+            font-size: 12px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+        LogoTile {
+            width: 64px;
+            border-radius: 6px;
+            item: root.item;
+            initials-size: 14px;
+            logo-scale: 0.8;
+        }
+        Text {
+            text: root.item.name;
+            color: root.current ? Theme.text : #d8d8de;
+            font-size: 13.5px;
+            font-weight: root.current ? 700 : 500;
+            overflow: elide;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        if root.item.favorite: VerticalLayout {
+            alignment: center;
+            Image {
+                source: Icons.heart-filled;
+                colorize: Theme.accent;
+                width: 14px;
+                height: 14px;
+            }
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component PlayerScreen inherits Rectangle {
+    // Aucun fond : la vidéo mpv est dessinée sous l'interface.
+    property <bool> ui-shown: AppState.controls-visible || AppState.zap-panel || AppState.player-error != "" || AppState.paused;
+    property <EpgEntry> now-e: AppState.playing-epg.length > 0 ? AppState.playing-epg[0] : { };
+    property <EpgEntry> next-e: AppState.playing-epg.length > 1 ? AppState.playing-epg[1] : { };
+
+    forward-focus: keys;
+
+    keys := FocusScope {
+        init => { self.focus(); }
+        key-pressed(event) => {
+            AppState.activity();
+            if (event.text == " " || event.text == "k") {
+                AppState.toggle-pause();
+                return accept;
+            }
+            if (event.text == Key.Escape) {
+                if (AppState.zap-panel) {
+                    AppState.zap-panel = false;
+                } else if (AppState.fullscreen) {
+                    AppState.toggle-fullscreen();
+                } else {
+                    AppState.back();
+                }
+                return accept;
+            }
+            if (event.text == Key.Backspace) {
+                AppState.back();
+                return accept;
+            }
+            if (event.text == Key.UpArrow || event.text == Key.PageUp) {
+                AppState.prev-channel();
+                return accept;
+            }
+            if (event.text == Key.DownArrow || event.text == Key.PageDown) {
+                AppState.next-channel();
+                return accept;
+            }
+            if (event.text == Key.RightArrow) {
+                AppState.volume-changed(Math.min(AppState.volume + 5, 100));
+                return accept;
+            }
+            if (event.text == Key.LeftArrow) {
+                AppState.volume-changed(Math.max(AppState.volume - 5, 0));
+                return accept;
+            }
+            if (event.text == "f" || event.text == "F" || event.text == Key.F11) {
+                AppState.toggle-fullscreen();
+                return accept;
+            }
+            if (event.text == "m" || event.text == "M") {
+                AppState.toggle-mute();
+                return accept;
+            }
+            if (event.text == "l" || event.text == "L") {
+                AppState.zap-panel = !AppState.zap-panel;
+                return accept;
+            }
+            reject
+        }
+
+        // Zone vidéo : mouvement = afficher les contrôles, double-clic = plein écran.
+        video-ta := TouchArea {
+            mouse-cursor: root.ui-shown ? MouseCursor.default : MouseCursor.none;
+            moved => { AppState.activity(); }
+            clicked => {
+                keys.focus();
+                if (AppState.zap-panel) {
+                    AppState.zap-panel = false;
+                } else {
+                    AppState.activity();
+                }
+            }
+            double-clicked => { AppState.toggle-fullscreen(); }
+            scroll-event(e) => {
+                if (e.delta-y > 0) {
+                    AppState.volume-changed(Math.min(AppState.volume + 5, 100));
+                } else if (e.delta-y < 0) {
+                    AppState.volume-changed(Math.max(AppState.volume - 5, 0));
+                }
+                accept
+            }
+        }
+
+        // Chargement / mise en mémoire tampon.
+        if AppState.buffering && AppState.player-error == "": VerticalLayout {
+            alignment: center;
+            spacing: 18px;
+            HorizontalLayout {
+                alignment: center;
+                Spinner { size: 54px; }
+            }
+            Text {
+                text: "Chargement de " + AppState.playing.name + "...";
+                color: #ffffffcc;
+                font-size: 14px;
+                horizontal-alignment: center;
+            }
+        }
+
+        // Erreur de lecture.
+        if AppState.player-error != "": Rectangle {
+            background: #000000b0;
+            VerticalLayout {
+                alignment: center;
+                spacing: 16px;
+                Image {
+                    source: Icons.alert;
+                    colorize: Theme.accent;
+                    width: 56px;
+                    height: 56px;
+                    x: (parent.width - 56px) / 2;
+                }
+                Text {
+                    text: "Lecture impossible";
+                    color: Theme.text;
+                    font-size: 24px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: AppState.player-error;
+                    color: Theme.text-dim;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 12px;
+                    Button {
+                        text: "Réessayer";
+                        kind: ButtonKind.white;
+                        has-icon: true;
+                        icon: Icons.refresh;
+                        clicked => { AppState.retry(); }
+                    }
+                    Button {
+                        text: "Retour";
+                        kind: ButtonKind.ghost;
+                        clicked => { AppState.back(); }
+                    }
+                }
+            }
+        }
+
+        // Grande icône pause au centre.
+        if AppState.paused && AppState.player-error == "" && !AppState.buffering: Rectangle {
+            width: 92px;
+            height: 92px;
+            border-radius: 46px;
+            background: #00000099;
+            border-width: 2px;
+            border-color: #ffffffb0;
+            Image {
+                source: Icons.pause;
+                colorize: white;
+                width: 38px;
+                height: 38px;
+            }
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { AppState.toggle-pause(); }
+            }
+        }
+
+        // ---- Barre supérieure
+        top := Rectangle {
+            y: root.ui-shown ? 0px : -self.height;
+            height: 130px;
+            opacity: root.ui-shown ? 1 : 0;
+            animate y, opacity { duration: Theme.normal; easing: ease-out; }
+            background: @linear-gradient(180deg, #000000d9 0%, #00000000 100%);
+
+            HorizontalLayout {
+                padding-left: 24px;
+                padding-right: 24px;
+                padding-top: 22px;
+                padding-bottom: 50px;
+                spacing: 18px;
+
+                IconButton {
+                    icon: Icons.back;
+                    size: 48px;
+                    icon-size: 24px;
+                    clicked => { AppState.back(); }
+                }
+                LogoTile {
+                    width: 84px;
+                    height: 48px;
+                    border-radius: 8px;
+                    item: AppState.playing;
+                    initials-size: 16px;
+                    logo-scale: 0.8;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 4px;
+                    horizontal-stretch: 1;
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: start;
+                        LiveBadge { small: true; }
+                        if AppState.quality != "": Rectangle {
+                            height: 20px;
+                            width: q.preferred-width + 12px;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: #ffffff80;
+                            q := Text {
+                                text: AppState.quality;
+                                color: white;
+                                font-size: 10.5px;
+                                font-weight: 700;
+                            }
+                        }
+                    }
+                    Text {
+                        text: (AppState.playing.number > 0 ? AppState.playing.number + "  ·  " : "") + AppState.playing.name;
+                        color: white;
+                        font-size: 20px;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+
+        // ---- Barre inférieure
+        bottom := Rectangle {
+            y: root.ui-shown ? parent.height - self.height : parent.height;
+            height: 190px;
+            opacity: root.ui-shown ? 1 : 0;
+            animate y, opacity { duration: Theme.normal; easing: ease-out; }
+            background: @linear-gradient(0deg, #000000e6 0%, #000000a0 55%, #00000000 100%);
+
+            TouchArea {
+                moved => { AppState.activity(); }
+            }
+
+            VerticalLayout {
+                padding-left: 32px;
+                padding-right: 32px;
+                padding-top: 40px;
+                padding-bottom: 22px;
+                spacing: 12px;
+
+                // Programme en cours.
+                HorizontalLayout {
+                    spacing: 14px;
+                    Text {
+                        text: AppState.playing-epg.length > 0 ? root.now-e.title : "Programme indisponible";
+                        color: white;
+                        font-size: 17px;
+                        font-weight: 600;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                    if AppState.playing-epg.length > 1: Text {
+                        text: "À suivre · " + root.next-e.time + "  " + root.next-e.title;
+                        color: #ffffff99;
+                        font-size: 13px;
+                        overflow: elide;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                        max-width: 420px;
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 14px;
+                    ProgressLine {
+                        y: (parent.height - self.height) / 2;
+                        horizontal-stretch: 1;
+                        value: AppState.playing-epg.length > 0 ? AppState.progress(root.now-e) : 0;
+                    }
+                    Text {
+                        text: AppState.playing-epg.length > 0 ? root.now-e.time : "";
+                        color: #ffffffb0;
+                        font-size: 12.5px;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Contrôles.
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: stretch;
+
+                    IconButton {
+                        icon: Icons.skip-prev;
+                        icon-size: 22px;
+                        clicked => { AppState.prev-channel(); }
+                    }
+                    IconButton {
+                        icon: AppState.paused ? Icons.play : Icons.pause;
+                        size: 52px;
+                        icon-size: 26px;
+                        clicked => { AppState.toggle-pause(); }
+                    }
+                    IconButton {
+                        icon: Icons.skip-next;
+                        icon-size: 22px;
+                        clicked => { AppState.next-channel(); }
+                    }
+                    Rectangle { width: 10px; }
+                    IconButton {
+                        icon: AppState.muted || AppState.volume == 0 ? Icons.volume-mute : Icons.volume;
+                        icon-size: 22px;
+                        clicked => { AppState.toggle-mute(); }
+                    }
+                    VolumeSlider {
+                        y: (parent.height - self.height) / 2;
+                        value: AppState.volume;
+                        changed(v) => { AppState.volume-changed(v); }
+                    }
+                    Text {
+                        text: AppState.muted ? "Muet" : Math.round(AppState.volume) + " %";
+                        color: #ffffffb0;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        width: 50px;
+                        horizontal-alignment: center;
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    IconButton {
+                        icon: AppState.playing.favorite ? Icons.heart-filled : Icons.heart;
+                        active: AppState.playing.favorite;
+                        icon-size: 22px;
+                        clicked => { AppState.toggle-favorite(AppState.playing.id); }
+                    }
+                    IconButton {
+                        icon: Icons.list;
+                        active: AppState.zap-panel;
+                        icon-size: 22px;
+                        clicked => { AppState.zap-panel = !AppState.zap-panel; }
+                    }
+                    IconButton {
+                        icon: AppState.fullscreen ? Icons.fullscreen-exit : Icons.fullscreen;
+                        icon-size: 22px;
+                        clicked => { AppState.toggle-fullscreen(); }
+                    }
+                }
+            }
+        }
+
+        // ---- Panneau de zapping (chaînes de la catégorie)
+        zap := Rectangle {
+            width: 380px;
+            x: AppState.zap-panel ? parent.width - self.width : parent.width + 20px;
+            animate x { duration: Theme.normal; easing: ease-out; }
+            background: #0d0d10f2;
+            border-width: 1px;
+            border-color: #ffffff12;
+            drop-shadow-blur: 40px;
+            drop-shadow-color: #000000cc;
+
+            TouchArea { moved => { AppState.activity(); } }
+
+            VerticalLayout {
+                padding-top: 20px;
+                padding-bottom: 12px;
+                spacing: 10px;
+                HorizontalLayout {
+                    padding-left: 20px;
+                    padding-right: 12px;
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+                        Text {
+                            text: "Chaînes";
+                            color: Theme.text;
+                            font-size: 19px;
+                            font-weight: 700;
+                        }
+                        Text {
+                            text: AppState.zap-title;
+                            color: Theme.text-faint;
+                            font-size: 12px;
+                            overflow: elide;
+                        }
+                    }
+                    IconButton {
+                        icon: Icons.close;
+                        size: 38px;
+                        icon-size: 18px;
+                        clicked => { AppState.zap-panel = false; }
+                    }
+                }
+                ListView {
+                    vertical-stretch: 1;
+                    for ch[i] in AppState.zap-list: Rectangle {
+                        height: 64px;
+                        ZapRow {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            item: ch;
+                            current: i == AppState.zap-index;
+                            clicked => { AppState.play(ch.id); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // libmpv absent.
+        if !AppState.mpv-available: Rectangle {
+            background: #000000e0;
+            VerticalLayout {
+                alignment: center;
+                spacing: 14px;
+                Text {
+                    text: "Lecteur vidéo indisponible";
+                    color: Theme.text;
+                    font-size: 24px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: AppState.mpv-error + "\nPlacez libmpv-2.dll à côté de flow-tv.exe puis relancez l'application.";
+                    color: Theme.text-dim;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    Button {
+                        text: "Retour";
+                        kind: ButtonKind.white;
+                        clicked => { AppState.back(); }
+                    }
+                }
+            }
+        }
+    }
+}

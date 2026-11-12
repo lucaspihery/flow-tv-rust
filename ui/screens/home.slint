@@ -1,0 +1,588 @@
+import { ListView } from "std-widgets.slint";
+import { Theme, Icons } from "../theme.slint";
+import { AppState, ChannelItem, CategoryItem, EpgEntry } from "../state.slint";
+import { Avatar, Button, ButtonKind, ChannelCard, IconButton, LiveBadge, LogoTile, ProgressLine, Spinner } from "../components.slint";
+import { BrandLogo } from "profiles.slint";
+
+component SearchBox inherits Rectangle {
+    width: 340px;
+    height: 40px;
+    border-radius: 20px;
+    background: input.has-focus ? #1f1f26 : #ffffff0d;
+    border-width: 1px;
+    border-color: input.has-focus ? #ffffff66 : (ta.has-hover ? #ffffff33 : #ffffff14);
+    animate background, border-color { duration: Theme.fast; }
+
+    ta := TouchArea {
+        mouse-cursor: MouseCursor.text;
+        clicked => { input.focus(); }
+    }
+    Image {
+        x: 14px;
+        source: Icons.search;
+        colorize: input.has-focus ? Theme.text : Theme.text-dim;
+        width: 18px;
+        height: 18px;
+    }
+    if AppState.search == "": Text {
+        x: 42px;
+        text: "Rechercher une chaîne";
+        color: Theme.text-faint;
+        font-size: 14px;
+        vertical-alignment: center;
+    }
+    input := TextInput {
+        x: 42px;
+        width: parent.width - 42px - (AppState.search != "" ? 40px : 16px);
+        height: 100%;
+        text <=> AppState.search;
+        color: Theme.text;
+        font-size: 14px;
+        vertical-alignment: center;
+        single-line: true;
+        selection-background-color: #e5091480;
+        edited => { AppState.search-edited(self.text); }
+    }
+    if AppState.search != "": IconButton {
+        x: parent.width - 36px;
+        size: 30px;
+        icon-size: 14px;
+        icon: Icons.close;
+        icon-color: Theme.text-dim;
+        clicked => {
+            AppState.search = "";
+            AppState.search-edited("");
+        }
+    }
+}
+
+component TopBar inherits Rectangle {
+    height: 68px;
+    background: @linear-gradient(180deg, #000000 0%, Theme.bg 100%);
+
+    HorizontalLayout {
+        padding-left: 32px;
+        padding-right: 24px;
+        spacing: 28px;
+
+        BrandLogo {
+            size: 28px;
+            y: (parent.height - self.height) / 2;
+        }
+        SearchBox {
+            y: (parent.height - self.height) / 2;
+        }
+        Rectangle { horizontal-stretch: 1; }
+
+        if AppState.syncing: HorizontalLayout {
+            spacing: 10px;
+            alignment: center;
+            Spinner {
+                size: 18px;
+                y: (parent.height - 18px) / 2;
+            }
+            Text {
+                text: AppState.sync-text;
+                color: Theme.text-dim;
+                font-size: 13px;
+                vertical-alignment: center;
+            }
+        }
+        IconButton {
+            y: (parent.height - self.height) / 2;
+            icon: Icons.refresh;
+            size: 40px;
+            icon-size: 19px;
+            icon-color: Theme.text-dim;
+            clicked => { AppState.refresh(); }
+        }
+
+        // Profil courant : clic = changer de profil.
+        profile := Rectangle {
+            width: phl.preferred-width;
+            border-radius: Theme.radius-s;
+            background: pta.has-hover ? #ffffff10 : transparent;
+            animate background { duration: Theme.fast; }
+            phl := HorizontalLayout {
+                padding-left: 8px;
+                padding-right: 10px;
+                spacing: 10px;
+                Avatar {
+                    size: 34px;
+                    y: (parent.height - 34px) / 2;
+                    tint-index: AppState.current-profile.color;
+                    initial: AppState.current-profile.initial;
+                    highlighted: pta.has-hover;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Text {
+                        text: AppState.current-profile.name;
+                        color: Theme.text;
+                        font-size: 13px;
+                        font-weight: 600;
+                    }
+                    Text {
+                        text: "Changer de profil";
+                        color: Theme.text-faint;
+                        font-size: 11px;
+                    }
+                }
+                Image {
+                    source: Icons.users;
+                    colorize: Theme.text-dim;
+                    width: 16px;
+                    height: 16px;
+                    y: (parent.height - 16px) / 2;
+                }
+            }
+            pta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { AppState.switch-profile(); }
+            }
+        }
+    }
+}
+
+component NavItem inherits Rectangle {
+    in property <string> label;
+    in property <int> count;
+    in property <bool> selected;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    callback clicked;
+
+    height: 40px;
+    border-radius: Theme.radius-s;
+    background: selected ? #ffffff14 : (ta.has-hover ? #ffffff0a : transparent);
+    animate background { duration: Theme.fast; }
+
+    Rectangle {
+        x: 0;
+        width: 3px;
+        height: root.selected ? 20px : 0px;
+        border-radius: 2px;
+        background: Theme.accent;
+        animate height { duration: Theme.normal; easing: ease-out; }
+    }
+
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 12px;
+        spacing: 12px;
+        if root.has-icon: Image {
+            source: root.icon;
+            colorize: root.selected ? Theme.text : Theme.text-dim;
+            width: 18px;
+            height: 18px;
+            y: (parent.height - 18px) / 2;
+        }
+        Text {
+            text: root.label;
+            color: root.selected ? Theme.text : (ta.has-hover ? #e6e6ea : Theme.text-dim);
+            font-size: 14px;
+            font-weight: root.selected ? 650 : 450;
+            overflow: elide;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        Text {
+            text: root.count;
+            color: Theme.text-faint;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component Sidebar inherits Rectangle {
+    width: 272px;
+    background: Theme.bg;
+
+    VerticalLayout {
+        padding-left: 16px;
+        padding-right: 8px;
+        padding-top: 8px;
+        spacing: 4px;
+
+        NavItem {
+            label: "Mes favoris";
+            count: AppState.fav-count;
+            has-icon: true;
+            icon: Icons.heart;
+            selected: AppState.search == "" && AppState.selected-category == "__fav__";
+            clicked => { AppState.select-category("__fav__"); }
+        }
+        NavItem {
+            label: "Toutes les chaînes";
+            count: AppState.all-count;
+            has-icon: true;
+            icon: Icons.grid;
+            selected: AppState.search == "" && AppState.selected-category == "__all__";
+            clicked => { AppState.select-category("__all__"); }
+        }
+        Text {
+            text: "CATÉGORIES";
+            color: Theme.text-faint;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.4px;
+            height: 44px;
+            vertical-alignment: center;
+            x: 16px;
+        }
+        ListView {
+            vertical-stretch: 1;
+            for c in AppState.categories: Rectangle {
+                height: 42px;
+                NavItem {
+                    width: parent.width - 8px;
+                    x: 0;
+                    height: 40px;
+                    label: c.name;
+                    count: c.count;
+                    selected: AppState.search == "" && AppState.selected-category == c.id;
+                    clicked => { AppState.select-category(c.id); }
+                }
+            }
+        }
+    }
+}
+
+component Hero inherits Rectangle {
+    in property <bool> collapsed;
+    property <ChannelItem> ch: AppState.hero;
+    property <EpgEntry> now-e: AppState.hero-epg.length > 0 ? AppState.hero-epg[0] : { };
+    property <EpgEntry> next-e: AppState.hero-epg.length > 1 ? AppState.hero-epg[1] : { };
+
+    clip: true;
+    height: collapsed ? 0px : 318px;
+    animate height { duration: Theme.normal; easing: ease-in-out; }
+
+    content := Rectangle {
+        y: 0;
+        height: 318px;
+        opacity: root.collapsed ? 0 : 1;
+        animate opacity { duration: Theme.normal; }
+
+        background: @linear-gradient(120deg, Theme.tint-dark(root.ch.tint) 0%, #120a0d 45%, Theme.bg 100%);
+
+        // Logo géant à droite, en filigrane.
+        LogoTile {
+            x: parent.width * 0.52;
+            y: 24px;
+            width: parent.width * 0.42;
+            height: parent.height - 48px;
+            item: root.ch;
+            background: transparent;
+            logo-scale: 0.62;
+            initials-size: 120px;
+            opacity: 0.9;
+        }
+        // Fondus latéral et bas pour la lisibilité.
+        Rectangle {
+            background: @linear-gradient(90deg, Theme.bg 0%, #0a0a0ce6 38%, #0a0a0c55 70%, #0a0a0c00 100%);
+        }
+        Rectangle {
+            background: @linear-gradient(0deg, Theme.bg 0%, #0a0a0c00 38%);
+        }
+
+        if !AppState.has-hero: Text {
+            x: 40px;
+            text: "Sélectionnez une chaîne";
+            color: Theme.text-dim;
+            font-size: 22px;
+        }
+
+        if AppState.has-hero: VerticalLayout {
+            x: 40px;
+            y: 30px;
+            width: min(parent.width * 0.56, 640px);
+            height: parent.height - 50px;
+            spacing: 12px;
+            alignment: start;
+
+            HorizontalLayout {
+                spacing: 10px;
+                alignment: start;
+                LiveBadge { }
+                if root.ch.number > 0: Text {
+                    text: "Chaîne " + root.ch.number;
+                    color: Theme.text-dim;
+                    font-size: 13px;
+                    vertical-alignment: center;
+                }
+            }
+            Text {
+                text: root.ch.name;
+                color: Theme.text;
+                font-size: 40px;
+                font-weight: 800;
+                overflow: elide;
+            }
+
+            if AppState.hero-epg.length > 0: VerticalLayout {
+                spacing: 8px;
+                Text {
+                    text: root.now-e.title;
+                    color: #ececf0;
+                    font-size: 19px;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: start;
+                    Text {
+                        text: root.now-e.time;
+                        color: Theme.text-dim;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                    }
+                    ProgressLine {
+                        width: 180px;
+                        y: (parent.height - self.height) / 2;
+                        value: AppState.progress(root.now-e);
+                    }
+                }
+                Text {
+                    text: root.now-e.description;
+                    color: Theme.text-dim;
+                    font-size: 13.5px;
+                    wrap: word-wrap;
+                    overflow: elide;
+                    max-height: 38px;
+                }
+            }
+            if AppState.hero-epg.length == 0: Text {
+                text: AppState.hero-epg-loading ? "Chargement du programme..." : "Programme indisponible pour cette chaîne";
+                color: Theme.text-faint;
+                font-size: 14px;
+            }
+
+            Rectangle { height: 2px; }
+
+            HorizontalLayout {
+                spacing: 12px;
+                alignment: start;
+                Button {
+                    text: "Regarder";
+                    kind: ButtonKind.white;
+                    has-icon: true;
+                    icon: Icons.play;
+                    height: 46px;
+                    font-size: 16px;
+                    clicked => { AppState.play(root.ch.id); }
+                }
+                Button {
+                    text: root.ch.favorite ? "Dans mes favoris" : "Ajouter aux favoris";
+                    kind: ButtonKind.secondary;
+                    has-icon: true;
+                    icon: root.ch.favorite ? Icons.check : Icons.heart;
+                    height: 46px;
+                    font-size: 15px;
+                    clicked => { AppState.toggle-favorite(root.ch.id); }
+                }
+            }
+            if AppState.hero-epg.length > 1: Text {
+                text: "À suivre · " + root.next-e.time + "  " + root.next-e.title;
+                color: Theme.text-faint;
+                font-size: 13px;
+                overflow: elide;
+            }
+        }
+    }
+}
+
+export component HomeScreen inherits Rectangle {
+    background: Theme.bg;
+
+    VerticalLayout {
+        TopBar { }
+
+        HorizontalLayout {
+            Sidebar { }
+
+            main := VerticalLayout {
+                horizontal-stretch: 1;
+                property <bool> hero-collapsed: false;
+
+                Hero {
+                    collapsed: main.hero-collapsed;
+                }
+
+                if AppState.home-error != "": Rectangle {
+                    height: 52px;
+                    HorizontalLayout {
+                        padding-left: 40px;
+                        padding-right: 40px;
+                        Rectangle {
+                            border-radius: Theme.radius-s;
+                            background: #e509141f;
+                            border-width: 1px;
+                            border-color: #e5091455;
+                            HorizontalLayout {
+                                padding-left: 14px;
+                                spacing: 10px;
+                                Image {
+                                    source: Icons.alert;
+                                    colorize: #ff5a63;
+                                    width: 18px;
+                                    height: 18px;
+                                    y: (parent.height - 18px) / 2;
+                                }
+                                Text {
+                                    text: AppState.home-error;
+                                    color: #ffb3b7;
+                                    font-size: 13px;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                    horizontal-stretch: 1;
+                                }
+                                Button {
+                                    text: "Réessayer";
+                                    kind: ButtonKind.ghost;
+                                    height: 32px;
+                                    font-size: 13px;
+                                    y: (parent.height - 32px) / 2;
+                                    clicked => { AppState.refresh(); }
+                                }
+                                Rectangle { width: 6px; }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    padding-left: 40px;
+                    padding-right: 40px;
+                    padding-top: 10px;
+                    padding-bottom: 12px;
+                    spacing: 12px;
+                    Text {
+                        text: AppState.section-title;
+                        color: Theme.text;
+                        font-size: 21px;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: AppState.visible-count + (AppState.visible-count > 1 ? " chaînes" : " chaîne");
+                        color: Theme.text-faint;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                }
+
+                grid-area := Rectangle {
+                    vertical-stretch: 1;
+
+                    property <length> pad: 40px;
+                    property <length> gap: 18px;
+                    property <length> min-card: 196px;
+                    property <length> avail: grid.visible-width - 2 * pad;
+                    property <int> columns: max(2, floor((avail + gap) / (min-card + gap)));
+                    property <length> card-w: (avail - (columns - 1) * gap) / columns;
+                    property <length> card-h: card-w * 0.58 + 46px;
+
+                    changed columns => { AppState.columns-changed(self.columns); }
+                    init => { AppState.columns-changed(self.columns); }
+
+                    grid := ListView {
+                        // Le hero se replie quand on fait défiler la grille (avec hystérésis
+                        // pour éviter toute boucle entre hauteur du hero et défilement).
+                        changed content-y => {
+                            if (self.content-y < -60px) {
+                                main.hero-collapsed = true;
+                            } else if (self.content-y >= -1px) {
+                                main.hero-collapsed = false;
+                            }
+                        }
+                        for row in AppState.channel-rows: Rectangle {
+                            height: grid-area.card-h + grid-area.gap;
+                            HorizontalLayout {
+                                padding-left: grid-area.pad;
+                                padding-top: 6px;
+                                spacing: grid-area.gap;
+                                alignment: start;
+                                for item in row.items: ChannelCard {
+                                    width: grid-area.card-w;
+                                    height: grid-area.card-h;
+                                    item: item;
+                                    play => { AppState.play(item.id); }
+                                    favorite => { AppState.toggle-favorite(item.id); }
+                                    hovered => { AppState.hover-channel(item.id); }
+                                }
+                            }
+                        }
+                    }
+
+                    if AppState.visible-count == 0 && !AppState.first-load: VerticalLayout {
+                        alignment: center;
+                        spacing: 14px;
+                        Image {
+                            source: AppState.selected-category == "__fav__" ? Icons.heart : Icons.tv;
+                            colorize: Theme.text-faint;
+                            width: 54px;
+                            height: 54px;
+                            x: (parent.width - 54px) / 2;
+                        }
+                        Text {
+                            text: AppState.search != "" ? "Aucune chaîne ne correspond à « " + AppState.search + " »"
+                                : AppState.selected-category == "__fav__" ? "Vous n'avez pas encore de favoris"
+                                : "Aucune chaîne dans cette catégorie";
+                            color: Theme.text;
+                            font-size: 18px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                        }
+                        if AppState.selected-category == "__fav__" && AppState.search == "": Text {
+                            text: "Survolez une chaîne et cliquez sur le cœur pour l'ajouter ici.";
+                            color: Theme.text-dim;
+                            font-size: 14px;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if AppState.first-load: Rectangle {
+        background: Theme.bg;
+        TouchArea { }
+        VerticalLayout {
+            alignment: center;
+            spacing: 22px;
+            HorizontalLayout {
+                alignment: center;
+                Spinner { size: 46px; }
+            }
+            Text {
+                text: AppState.sync-text;
+                color: Theme.text-dim;
+                font-size: 15px;
+                horizontal-alignment: center;
+            }
+            if AppState.home-error != "": HorizontalLayout {
+                alignment: center;
+                spacing: 12px;
+                Button {
+                    text: "Réessayer";
+                    kind: ButtonKind.primary;
+                    clicked => { AppState.refresh(); }
+                }
+                Button {
+                    text: "Changer de profil";
+                    kind: ButtonKind.ghost;
+                    clicked => { AppState.switch-profile(); }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,8 @@
+/target
+/dist
+/vendor/mpv/*
+!/vendor/mpv/README.md
+*.dll
+*.pdb
+*.7z
+installer/Output/

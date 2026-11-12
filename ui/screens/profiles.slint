@@ -1,0 +1,384 @@
+import { Theme, Icons } from "../theme.slint";
+import { AppState, ProfileItem } from "../state.slint";
+import { Avatar, Button, ButtonKind, Field, Spinner } from "../components.slint";
+
+export component BrandLogo inherits Rectangle {
+    in property <length> size: 30px;
+    width: hl.preferred-width;
+    height: hl.preferred-height;
+    hl := HorizontalLayout {
+        spacing: 0px;
+        Text {
+            text: "FLOW";
+            color: Theme.accent;
+            font-size: root.size;
+            font-weight: 900;
+            letter-spacing: root.size * 0.04;
+        }
+        Text {
+            text: "TV";
+            color: Theme.text;
+            font-size: root.size;
+            font-weight: 300;
+            letter-spacing: root.size * 0.04;
+        }
+    }
+}
+
+component ProfileTile inherits VerticalLayout {
+    in property <ProfileItem> profile;
+    in property <bool> manage;
+    callback clicked;
+
+    spacing: 14px;
+    alignment: start;
+
+    Rectangle {
+        width: 148px;
+        height: 148px;
+
+        avatar := Avatar {
+            size: ta.has-hover ? 148px : 140px;
+            animate size { duration: 180ms; easing: ease-out; }
+            tint-index: root.profile.color;
+            initial: root.profile.initial;
+            highlighted: ta.has-hover;
+        }
+        if root.manage: Rectangle {
+            width: avatar.width;
+            height: avatar.height;
+            border-radius: avatar.border-radius;
+            background: #0000008c;
+            Rectangle {
+                width: 52px;
+                height: 52px;
+                border-radius: 26px;
+                border-width: 2px;
+                border-color: white;
+                Image {
+                    source: Icons.pencil;
+                    colorize: white;
+                    width: 24px;
+                    height: 24px;
+                }
+            }
+        }
+        ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.clicked(); }
+        }
+    }
+    Text {
+        text: root.profile.name;
+        color: ta.has-hover ? Theme.text : Theme.text-dim;
+        font-size: 17px;
+        horizontal-alignment: center;
+        overflow: elide;
+        width: 148px;
+        animate color { duration: Theme.fast; }
+    }
+    Text {
+        text: root.profile.subtitle;
+        color: Theme.text-faint;
+        font-size: 12px;
+        horizontal-alignment: center;
+        overflow: elide;
+        width: 148px;
+    }
+}
+
+component AddProfileTile inherits VerticalLayout {
+    callback clicked;
+    spacing: 14px;
+    alignment: start;
+
+    Rectangle {
+        width: 148px;
+        height: 148px;
+        Rectangle {
+            width: ta.has-hover ? 148px : 140px;
+            height: self.width;
+            animate width { duration: 180ms; easing: ease-out; }
+            border-radius: 14px;
+            background: ta.has-hover ? #ffffff14 : transparent;
+            border-width: 2px;
+            border-color: ta.has-hover ? Theme.text : Theme.border;
+            animate background, border-color { duration: Theme.fast; }
+            Rectangle {
+                width: 64px;
+                height: 64px;
+                border-radius: 32px;
+                background: ta.has-hover ? Theme.text : Theme.surface-3;
+                animate background { duration: Theme.fast; }
+                Image {
+                    source: Icons.plus;
+                    colorize: ta.has-hover ? #0a0a0c : Theme.text-dim;
+                    width: 30px;
+                    height: 30px;
+                }
+            }
+        }
+        ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.clicked(); }
+        }
+    }
+    Text {
+        text: "Ajouter un profil";
+        color: ta.has-hover ? Theme.text : Theme.text-dim;
+        font-size: 17px;
+        horizontal-alignment: center;
+        width: 148px;
+    }
+}
+
+export component ProfilesScreen inherits Rectangle {
+    background: @radial-gradient(circle, #1a0c10 0%, Theme.bg 70%);
+
+    // Mention requise par la licence Slint « Royalty-free ».
+    Text {
+        x: parent.width - self.width - 28px;
+        y: parent.height - self.height - 20px;
+        text: "Réalisé avec Slint · Lecture vidéo par mpv";
+        color: Theme.text-faint;
+        font-size: 11px;
+    }
+
+    BrandLogo {
+        x: 48px;
+        y: 28px;
+        size: 34px;
+    }
+
+    VerticalLayout {
+        alignment: center;
+        spacing: 46px;
+
+        Text {
+            text: AppState.profiles.length == 0
+                ? "Bienvenue sur Flow TV"
+                : AppState.manage-profiles ? "Gérer les profils" : "Qui regarde ?";
+            color: Theme.text;
+            font-size: 46px;
+            font-weight: 500;
+            horizontal-alignment: center;
+        }
+        if AppState.profiles.length == 0: Text {
+            text: "Ajoutez votre premier profil avec vos identifiants Xtream Codes pour commencer.";
+            color: Theme.text-dim;
+            font-size: 17px;
+            horizontal-alignment: center;
+        }
+
+        HorizontalLayout {
+            alignment: center;
+            spacing: 30px;
+
+            for p in AppState.profiles: ProfileTile {
+                profile: p;
+                manage: AppState.manage-profiles;
+                clicked => {
+                    if (AppState.manage-profiles) {
+                        AppState.edit-profile(p.id);
+                    } else {
+                        AppState.select-profile(p.id);
+                    }
+                }
+            }
+            if !AppState.manage-profiles: AddProfileTile {
+                clicked => { AppState.new-profile(); }
+            }
+        }
+
+        if AppState.profiles.length > 0: HorizontalLayout {
+            alignment: center;
+            Button {
+                text: AppState.manage-profiles ? "Terminé" : "Gérer les profils";
+                kind: AppState.manage-profiles ? ButtonKind.white : ButtonKind.ghost;
+                has-icon: !AppState.manage-profiles;
+                icon: Icons.pencil;
+                height: 46px;
+                clicked => { AppState.manage-profiles = !AppState.manage-profiles; }
+            }
+        }
+    }
+}
+
+component ColorDot inherits Rectangle {
+    in property <int> index;
+    in property <bool> selected;
+    callback clicked;
+    width: 34px;
+    height: 34px;
+    border-radius: 17px;
+    background: Theme.tint(index);
+    border-width: selected ? 3px : (ta.has-hover ? 2px : 0px);
+    border-color: white;
+    animate border-width { duration: Theme.fast; }
+    if root.selected: Image {
+        source: Icons.check;
+        colorize: white;
+        width: 16px;
+        height: 16px;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component ProfileEditor inherits Rectangle {
+    background: @radial-gradient(circle, #1a0c10 0%, Theme.bg 75%);
+
+    TouchArea { }
+
+    BrandLogo {
+        x: 48px;
+        y: 28px;
+        size: 34px;
+    }
+
+    card := Rectangle {
+        width: min(parent.width - 48px, 620px);
+        height: content.preferred-height;
+        border-radius: Theme.radius-l;
+        background: #131317ee;
+        border-width: 1px;
+        border-color: #ffffff12;
+        drop-shadow-blur: 60px;
+        drop-shadow-color: #000000b0;
+
+        content := VerticalLayout {
+            padding: 40px;
+            spacing: 22px;
+
+            Text {
+                text: AppState.edit-id < 0 ? "Ajouter un profil" : "Modifier le profil";
+                color: Theme.text;
+                font-size: 32px;
+                font-weight: 600;
+            }
+            Text {
+                text: "Renseignez l'adresse de votre serveur Xtream Codes et vos identifiants.";
+                color: Theme.text-dim;
+                font-size: 14px;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                spacing: 26px;
+                Avatar {
+                    size: 112px;
+                    tint-index: AppState.edit-color;
+                    initial: AppState.edit-initial;
+                }
+                VerticalLayout {
+                    spacing: 14px;
+                    alignment: center;
+                    Field {
+                        label: "Nom du profil";
+                        placeholder: "Salon, Lucas, Enfants...";
+                        text <=> AppState.edit-name;
+                        enabled: !AppState.edit-busy;
+                        edited(t) => { AppState.edit-name-changed(t); }
+                    }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: start;
+                        for i in 8: ColorDot {
+                            index: i;
+                            selected: AppState.edit-color == i;
+                            clicked => { AppState.edit-color = i; }
+                        }
+                    }
+                }
+            }
+
+            Rectangle { height: 1px; background: Theme.border; }
+
+            Field {
+                label: "Adresse du serveur";
+                placeholder: "http://mon-serveur.com:8080";
+                text <=> AppState.edit-server;
+                enabled: !AppState.edit-busy;
+            }
+            HorizontalLayout {
+                spacing: 16px;
+                Field {
+                    horizontal-stretch: 1;
+                    width: (parent.width - 16px) / 2;
+                    label: "Nom d'utilisateur";
+                    text <=> AppState.edit-user;
+                    enabled: !AppState.edit-busy;
+                }
+                Field {
+                    horizontal-stretch: 1;
+                    width: (parent.width - 16px) / 2;
+                    label: "Mot de passe";
+                    password: true;
+                    text <=> AppState.edit-pass;
+                    enabled: !AppState.edit-busy;
+                    accepted => { AppState.save-profile(); }
+                }
+            }
+
+            if AppState.edit-error != "": Rectangle {
+                height: err.preferred-height + 22px;
+                border-radius: Theme.radius-s;
+                background: #e509141f;
+                border-width: 1px;
+                border-color: #e5091466;
+                err := HorizontalLayout {
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    spacing: 10px;
+                    Image {
+                        source: Icons.alert;
+                        colorize: #ff5a63;
+                        width: 18px;
+                        height: 18px;
+                        y: (parent.height - 18px) / 2;
+                    }
+                    Text {
+                        text: AppState.edit-error;
+                        color: #ffb3b7;
+                        font-size: 14px;
+                        wrap: word-wrap;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+                padding-top: 6px;
+                Button {
+                    text: AppState.edit-busy ? "Connexion..." : "Enregistrer";
+                    busy: AppState.edit-busy;
+                    kind: ButtonKind.primary;
+                    height: 48px;
+                    clicked => { AppState.save-profile(); }
+                }
+                Button {
+                    text: "Annuler";
+                    kind: ButtonKind.ghost;
+                    height: 48px;
+                    enabled: !AppState.edit-busy;
+                    clicked => { AppState.cancel-edit(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                if AppState.edit-id >= 0: Button {
+                    text: "Supprimer";
+                    kind: ButtonKind.danger;
+                    has-icon: true;
+                    icon: Icons.trash;
+                    height: 48px;
+                    enabled: !AppState.edit-busy;
+                    clicked => { AppState.delete-profile(AppState.edit-id); }
+                }
+            }
+        }
+    }
+}
+
