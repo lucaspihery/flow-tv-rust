@@ -76,9 +76,13 @@ impl Player {
         }
         let core = Arc::new(Core { api, handle });
 
+        let hwdec = std::env::var("FLOWTV_HWDEC").unwrap_or_else(|_| "auto-copy-safe".into());
+        log::info!("décodage vidéo : hwdec={hwdec}");
         let opts: &[(&str, &str)] = &[
             ("vo", "libmpv"),
-            ("hwdec", "auto-safe"),
+            // Décodage matériel en mode « copie » : le GPU décode puis l'image est recopiée.
+            // Plus robuste que l'interop directe D3D11 -> OpenGL (source d'artefacts sous Windows).
+            ("hwdec", hwdec.as_str()),
             ("idle", "yes"),
             ("keep-open", "no"),
             ("terminal", "no"),
@@ -118,6 +122,7 @@ impl Player {
             (3, "volume", MPV_FORMAT_DOUBLE),
             (4, "mute", MPV_FORMAT_FLAG),
             (5, "height", MPV_FORMAT_INT64),
+            (6, "hwdec-current", MPV_FORMAT_STRING),
         ];
         for (id, name, fmt) in observed {
             let n = cstr(name);
@@ -323,6 +328,15 @@ fn event_loop(core: Arc<Core>, on_event: impl Fn(PlayerEvent)) {
                         (3, MPV_FORMAT_DOUBLE) => on_event(PlayerEvent::Volume(*(p.data as *const f64))),
                         (4, MPV_FORMAT_FLAG) => on_event(PlayerEvent::Muted(*(p.data as *const c_int) != 0)),
                         (5, MPV_FORMAT_INT64) => on_event(PlayerEvent::VideoHeight(*(p.data as *const i64))),
+                        (6, MPV_FORMAT_STRING) => {
+                            let v = *(p.data as *const *const c_char);
+                            if !v.is_null() {
+                                log::info!(
+                                    "décodeur matériel actif : {}",
+                                    CStr::from_ptr(v).to_string_lossy()
+                                );
+                            }
+                        }
                         _ => {}
                     }
                 }

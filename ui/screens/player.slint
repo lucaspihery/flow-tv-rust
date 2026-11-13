@@ -396,23 +396,27 @@ export component PlayerScreen inherits Rectangle {
                     alignment: stretch;
 
                     IconButton {
+                        y: (parent.height - self.height) / 2;
                         icon: Icons.skip-prev;
                         icon-size: 22px;
                         clicked => { AppState.prev-channel(); }
                     }
                     IconButton {
+                        y: (parent.height - self.height) / 2;
                         icon: AppState.paused ? Icons.play : Icons.pause;
                         size: 52px;
                         icon-size: 26px;
                         clicked => { AppState.toggle-pause(); }
                     }
                     IconButton {
+                        y: (parent.height - self.height) / 2;
                         icon: Icons.skip-next;
                         icon-size: 22px;
                         clicked => { AppState.next-channel(); }
                     }
                     Rectangle { width: 10px; }
                     IconButton {
+                        y: (parent.height - self.height) / 2;
                         icon: AppState.muted || AppState.volume == 0 ? Icons.volume-mute : Icons.volume;
                         icon-size: 22px;
                         clicked => { AppState.toggle-mute(); }
@@ -432,18 +436,21 @@ export component PlayerScreen inherits Rectangle {
                     }
                     Rectangle { horizontal-stretch: 1; }
                     IconButton {
+                        y: (parent.height - self.height) / 2;
                         icon: AppState.playing.favorite ? Icons.heart-filled : Icons.heart;
                         active: AppState.playing.favorite;
                         icon-size: 22px;
                         clicked => { AppState.toggle-favorite(AppState.playing.id); }
                     }
                     IconButton {
+                        y: (parent.height - self.height) / 2;
                         icon: Icons.list;
                         active: AppState.zap-panel;
                         icon-size: 22px;
                         clicked => { AppState.zap-panel = !AppState.zap-panel; }
                     }
                     IconButton {
+                        y: (parent.height - self.height) / 2;
                         icon: AppState.fullscreen ? Icons.fullscreen-exit : Icons.fullscreen;
                         icon-size: 22px;
                         clicked => { AppState.toggle-fullscreen(); }
