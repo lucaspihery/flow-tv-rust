@@ -167,7 +167,9 @@ export component PlayerScreen inherits Rectangle {
         // Zone vidéo : mouvement = afficher les contrôles, double-clic = plein écran.
         video-ta := TouchArea {
             mouse-cursor: root.ui-shown ? MouseCursor.default : MouseCursor.none;
-            moved => { AppState.activity(); }
+            // `moved` n'est appelé que bouton enfoncé : on suit donc la position du curseur.
+            changed mouse-x => { AppState.activity(); }
+            changed mouse-y => { AppState.activity(); }
             clicked => {
                 keys.focus();
                 if (AppState.zap-panel) {
@@ -340,7 +342,9 @@ export component PlayerScreen inherits Rectangle {
             background: @linear-gradient(0deg, #000000e6 0%, #000000a0 55%, #00000000 100%);
 
             TouchArea {
-                moved => { AppState.activity(); }
+                // `moved` n'est appelé que bouton enfoncé : on suit donc la position du curseur.
+            changed mouse-x => { AppState.activity(); }
+            changed mouse-y => { AppState.activity(); }
             }
 
             VerticalLayout {
@@ -459,7 +463,10 @@ export component PlayerScreen inherits Rectangle {
             drop-shadow-blur: 40px;
             drop-shadow-color: #000000cc;
 
-            TouchArea { moved => { AppState.activity(); } }
+            TouchArea {
+                changed mouse-x => { AppState.activity(); }
+                changed mouse-y => { AppState.activity(); }
+            }
 
             VerticalLayout {
                 padding-top: 20px;
