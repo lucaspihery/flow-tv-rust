@@ -65,6 +65,9 @@ fn main() {
         }
     }
 
+    // Ouverture en plein écran fenêtré (maximisée).
+    ui.window().set_maximized(true);
+
     ui.run().expect("boucle d'événements");
 
     ctl.on_exit();

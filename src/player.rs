@@ -90,6 +90,10 @@ impl Player {
             ("hwdec-codecs", hwdec_codecs.as_str()),
             // Désentrelace automatiquement les flux 1080i / 576i.
             ("deinterlace", "auto"),
+            // « Direct rendering » : le décodeur écrit directement dans des tampons OpenGL
+            // partagés. Mal synchronisé sur certains pilotes Windows, il produit des traits
+            // noirs dans les zones en mouvement. On le désactive (coût négligeable).
+            ("vd-lavc-dr", "no"),
             ("idle", "yes"),
             ("keep-open", "no"),
             ("terminal", "no"),
@@ -116,6 +120,21 @@ impl Player {
             let r = unsafe { (core.api.set_option_string)(core.handle, k.as_ptr(), v.as_ptr()) };
             if r < 0 {
                 log::warn!("option mpv {:?} refusée : {}", k, core.api.err_str(r));
+            }
+        }
+        // Options supplémentaires pour le diagnostic, ex. : FLOWTV_MPV_OPTS="hwdec=no;vd-lavc-threads=4"
+        if let Ok(extra) = std::env::var("FLOWTV_MPV_OPTS") {
+            for pair in extra.split(';').filter(|p| !p.trim().is_empty()) {
+                if let Some((k, v)) = pair.split_once('=') {
+                    let (k, v) = (cstr(k.trim()), cstr(v.trim()));
+                    let r = unsafe { (core.api.set_option_string)(core.handle, k.as_ptr(), v.as_ptr()) };
+                    log::info!(
+                        "option mpv {:?}={:?} : {}",
+                        k,
+                        v,
+                        if r < 0 { core.api.err_str(r) } else { "ok".into() }
+                    );
+                }
             }
         }
         let r = unsafe { (core.api.initialize)(core.handle) };
