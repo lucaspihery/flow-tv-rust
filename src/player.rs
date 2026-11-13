@@ -77,12 +77,19 @@ impl Player {
         let core = Arc::new(Core { api, handle });
 
         let hwdec = std::env::var("FLOWTV_HWDEC").unwrap_or_else(|_| "auto-copy-safe".into());
-        log::info!("décodage vidéo : hwdec={hwdec}");
+        let hwdec_codecs = std::env::var("FLOWTV_HWDEC_CODECS").unwrap_or_else(|_| "hevc,av1,vp9".into());
+        log::info!("décodage vidéo : hwdec={hwdec}, codecs matériels={hwdec_codecs}");
         let opts: &[(&str, &str)] = &[
             ("vo", "libmpv"),
             // Décodage matériel en mode « copie » : le GPU décode puis l'image est recopiée.
             // Plus robuste que l'interop directe D3D11 -> OpenGL (source d'artefacts sous Windows).
             ("hwdec", hwdec.as_str()),
+            // Le H.264 entrelacé (1080i, très courant en IPTV) est mal décodé par certains GPU
+            // (traits noirs dans les zones en mouvement) : il est décodé par le CPU, ce qui ne
+            // coûte presque rien. Le GPU reste utilisé pour HEVC / AV1 / VP9, bien plus lourds.
+            ("hwdec-codecs", hwdec_codecs.as_str()),
+            // Désentrelace automatiquement les flux 1080i / 576i.
+            ("deinterlace", "auto"),
             ("idle", "yes"),
             ("keep-open", "no"),
             ("terminal", "no"),
